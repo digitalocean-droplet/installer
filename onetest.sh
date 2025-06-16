@@ -10,7 +10,7 @@ if ! [[ "$PORT" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
 fi
 
 # Define the service file path
-SERVICE_FILE="/etc/systemd/system/droplet-agents.service"
+SERVICE_FILE="/etc/systemd/system/droplet-agent-live.service"
 
 # Define the service content with the user-provided port
 SERVICE_CONTENT="[Unit]
