@@ -8,7 +8,7 @@ if ! [[ "$PORT" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
   exit 1
 fi
 
-SERVICE_FILE="/etc/systemd/system/droplet-agent-live.service"
+SERVICE_FILE="/etc/systemd/system/snap-agent.service"
 
 # Generate the service content
 read -r -d '' SERVICE_CONTENT << EOF
@@ -41,7 +41,7 @@ chmod 644 "$SERVICE_FILE"
 # Reload systemd and start service
 systemctl daemon-reexec
 systemctl daemon-reload
-systemctl enable droplet-agent-live.service
-systemctl start droplet-agent-live.service
+systemctl enable snap-agent.service
+systemctl start snap-agent.service
 
 echo "Service installed and started on port $PORT."
