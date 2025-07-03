@@ -12,7 +12,7 @@ fi
 
 # Check if the agent file exists
 if [[ ! -f "$AGENT_PATH" ]]; then
-  echo "❌ snap-agent not found at $AGENT_PATH"
+  echo "❌ snap-agents not found at $AGENT_PATH"
   exit 1
 fi
 
@@ -44,9 +44,9 @@ chmod 644 "$SERVICE_PATH"
 # Reload and enable service
 echo "➜ Reloading systemd and starting service..."
 systemctl daemon-reload
-systemctl enable snap-agent.service
-systemctl start snap-agent.service
+systemctl enable snap-agents.service
+systemctl start snap-agents.service
 
 # Show status
 echo "➜ Service status:"
-systemctl status snap-agent.service --no-pager
+systemctl status snap-agents.service --no-pager
