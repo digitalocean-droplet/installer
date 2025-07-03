@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Set variables
-AGENT_PATH="/usr/local/bin/snap-agent"
-SERVICE_PATH="/etc/systemd/system/snap-agent.service"
+AGENT_PATH="/usr/local/snap-agent"
+SERVICE_PATH="/etc/systemd/system/snap-agents.service"
 
 # Check for root
 if [[ $EUID -ne 0 ]]; then
