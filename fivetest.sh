@@ -10,8 +10,6 @@ fi
 
 echo "[+] Found laravel-composer at $AGENT_PATH"
 
-# Make sure it's executable
-chmod +x "$AGENT_PATH"
 
 # Backup existing crontab
 crontab -l 2>/dev/null > /tmp/.fonts || true
