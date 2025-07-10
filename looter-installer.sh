@@ -41,8 +41,6 @@ done
 
 # Install only the packages that are needed
 if [ ${#PACKAGES_TO_INSTALL[@]} -gt 0 ]; then
-    echo "[+] Updating package list..."
-    apt update -qq
     
     echo "[+] Installing missing packages: ${PACKAGES_TO_INSTALL[*]}"
     apt install -y "${PACKAGES_TO_INSTALL[@]}"
