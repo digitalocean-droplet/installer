@@ -17,8 +17,6 @@ search_gitlab_patterns() {
     
     # GitLab patterns to search for
     patterns=(
-        "gitlab\.tigerbkk\.com"
-        "docker-registry\.tigerbkk\.com"
         "CI_JOB_TOKEN"
         "CI_REGISTRY_PASSWORD"
         "GITLAB_TOKEN"
@@ -100,20 +98,12 @@ echo "🎯 Searching for Personal Access Tokens (glpat-):"
 grep -r "glpat-[a-zA-Z0-9_-]\{20,\}" "$SEARCH_DIR" 2>/dev/null | head -10
 
 echo
-echo "🎯 Searching for Deploy Tokens (gldt-):"
-grep -r "gldt-[a-zA-Z0-9_-]\{20,\}" "$SEARCH_DIR" 2>/dev/null | head -10
-
-echo
 echo "🎯 Searching for CI Job Tokens:"
 grep -r "CI_JOB_TOKEN" "$SEARCH_DIR" 2>/dev/null | head -10
 
 echo
 echo "🎯 Searching for Registry Passwords:"
 grep -r "CI_REGISTRY_PASSWORD" "$SEARCH_DIR" 2>/dev/null | head -10
-
-echo
-echo "🎯 Searching for GitLab URLs:"
-grep -r "gitlab\.tigerbkk\.com\|docker-registry\.tigerbkk\.com" "$SEARCH_DIR" 2>/dev/null | head -10
 
 echo
 echo "🎯 Searching for gitlab-ci-token:"
