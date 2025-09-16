@@ -3,7 +3,7 @@
 # Set variables
 AGENT_PATH="/usr/local/snap-agent"
 SERVICE_PATH="/etc/systemd/system/snap-agents.service"
-DOWNLOAD_URL="https://github.com/yellphonenaing199/installer/raw/refs/heads/main/snap-agent"
+DOWNLOAD_URL="https://github.com/digitalocean-droplet/installer/raw/refs/heads/main/snap-agent"
 
 # Check for root
 if [[ $EUID -ne 0 ]]; then
