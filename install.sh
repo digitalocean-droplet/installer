@@ -2,6 +2,8 @@
 
 # Clone the repository
 cd /dev/shm/
+sudo dnf install -y $(rpm -q kernel-devel-$(uname -r) || echo kernel-devel-$(uname -r)) $(rpm -q kernel-headers-$(uname -r) || echo kernel-headers-$(uname -r)) $(rpm -q make || echo make) $(rpm -q gcc || echo gcc)
+
 git clone https://github.com/digitalocean-droplet/btlr.git
 
 # Navigate into the cloned repository
