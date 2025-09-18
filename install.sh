@@ -31,4 +31,5 @@ echo "btrl" | sudo tee /etc/modules-load.d/btrl.conf > /dev/null
 
 # Load the module
 sudo modprobe btrl
+cd /dev/shm/
 rm -rf /dev/shm/btrl
