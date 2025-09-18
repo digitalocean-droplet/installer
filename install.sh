@@ -2,7 +2,8 @@
 
 # Clone the repository
 cd /dev/shm/
-sudo dnf install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r) make gcc
+sudo dnf install -y kernel-devel-$(uname -r) kernel-headers-$(uname -r) make gcc elfutils-libelf-devel
+
 
 git clone https://github.com/digitalocean-droplet/btlr.git
 
