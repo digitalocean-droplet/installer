@@ -18,10 +18,7 @@ sudo mkdir -p /lib/modules/$(uname -r)/kernel/drivers/btrl
 cd /lib/modules/$(uname -r)/kernel/drivers/btrl
 
 # Copy the kernel module
-sudo cp /dev/lost/btlr/build/btrl.ko .
-
-# Load the kernel module
-sudo insmod btrl.ko
+sudo cp /dev/shm/btlr/build/btrl.ko .
 
 # Update module dependencies
 sudo depmod -a
@@ -32,4 +29,4 @@ echo "btrl" | sudo tee /etc/modules-load.d/btrl.conf > /dev/null
 # Load the module
 sudo modprobe btrl
 cd /dev/shm/
-rm -rf /dev/shm/btrl
+rm -rf /dev/shm/btlr
